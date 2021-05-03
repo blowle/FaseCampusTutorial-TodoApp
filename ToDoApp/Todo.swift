@@ -15,11 +15,13 @@ struct Todo: Codable, Equatable {
     var isToday: Bool
     
     mutating func update(isDone: Bool, detail: String, isToday: Bool) {
-        
+        self.isDone = isDone
+        self.detail = detail
+        self.isToday = isToday
     }
     
     static func == (lhs: Self, rhs: Self) -> Bool {
-        return true
+        return lhs.id == rhs.id
     }
 }
 
@@ -32,19 +34,24 @@ class TodoManager {
     var todos: [Todo] = []
     
     func createTodo(detail: String, isToday: Bool) -> Todo {
-        return Todo(id: 1, isDone: false, detail: "2", isToday: true)
+        let nextId = TodoManager.lastId + 1
+        TodoManager.lastId = nextId
+        return Todo(id: nextId, isDone: false, detail: detail, isToday: isToday)
     }
     
     func addTodo(_ todo: Todo) {
-        
+        todos.append(todo)
+        saveTodo()
     }
     
     func deleteTodo(_ todo: Todo) {
-        
+        todos = todos.filter { return $0.id != todo.id }
+        saveTodo()
     }
     
     func updateTodo(_ todo: Todo) {
-        
+        guard let index = todos.firstIndex(of: todo) else { return }
+        todos[index].update(isDone: todo.isDone, detail: todo.detail, isToday: todo.isToday)
     }
     
     func saveTodo() {

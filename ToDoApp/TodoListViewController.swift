@@ -18,36 +18,58 @@ class TodoListViewController: UIViewController {
     
     
     // TODO: TodoViewModel 만들기
-    
+    let todoListViewModel = TodoViewModel()
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        
+        collectionView.delegate = self
+        collectionView.dataSource = self
         // TODO: 키보드 디텍션
-        
+        NotificationCenter.default.addObserver(self, selector: #selector(adjustInputView(noti:)), name: UIResponder.keyboardWillShowNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(adjustInputView(noti:)), name: UIResponder.keyboardWillHideNotification, object: nil)
         
         // TODO: 데이터 불러오기
+        todoListViewModel.loadTasks()
         
+//        let todo = TodoManager.shared.createTodo(detail: "Corona 난리", isToday: true)
+//        Storage.saveTodo(todo, fileName: "todos.json")
     }
     
     @IBAction func isTodayButtonTapped(_ sender: Any) {
         // TODO: 투데이 버튼 토글 작업
-        
+        isTodayButton.isSelected = !isTodayButton.isSelected
     }
     
     @IBAction func addTaskButtonTapped(_ sender: Any) {
         // TODO: Todo 태스크 추가
         // add task to view model
         // and tableview reload or update
+        guard let detail = inputTextField.text, detail.isEmpty == false else { return }
+        let todo = TodoManager.shared.createTodo(detail: detail, isToday: isTodayButton.isSelected)
+        todoListViewModel.addTodo(todo)
+        collectionView.reloadData()
+        inputTextField.text = ""
+        isTodayButton.isSelected = false
     }
     
-    // TODO: BG 탭했을때, 키보드 내려오게 하기
+    // Tb  ODO: BG 탭했을때, 키보드 내려오게 하기
+    @IBAction func tapBG(_ sender: Any) {
+        inputTextField.resignFirstResponder()
+    }
 }
 
 extension TodoListViewController {
     @objc private func adjustInputView(noti: Notification) {
         guard let userInfo = noti.userInfo else { return }
         // TODO: 키보드 높이에 따른 인풋뷰 위치 변경
+        guard let keyboardFrame = (userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue else { return }
+        
+        if noti.name == UIResponder.keyboardWillShowNotification {
+            let adjustmentHeight = -keyboardFrame.height + view.safeAreaInsets.bottom
+            inputViewBottom.constant = adjustmentHeight
+        } else {
+            inputViewBottom.constant = 0
+        }
         
     }
 }
@@ -55,12 +77,16 @@ extension TodoListViewController {
 extension TodoListViewController: UICollectionViewDataSource {
     func numberOfSections(in collectionView: UICollectionView) -> Int {
         // TODO: 섹션 몇개
-        return 1
+        return todoListViewModel.numOfSection
     }
     
     func collectionView(_ collectionView: UICollectionView, numberOfItemsInSection section: Int) -> Int {
         // TODO: 섹션별 아이템 몇개
-        return 1
+        if section == 0 {
+            return todoListViewModel.todayTodos.count
+        } else {
+            return todoListViewModel.upcomingTodos.count
+        }
     }
     
     func collectionView(_ collectionView: UICollectionView, cellForItemAt indexPath: IndexPath) -> UICollectionViewCell {
@@ -69,9 +95,27 @@ extension TodoListViewController: UICollectionViewDataSource {
             return UICollectionViewCell()
         }
         
-        // TODO: todo 를 이용해서 updateUI
+        var todo: Todo
+        if indexPath.section == 0 {
+            todo = todoListViewModel.todayTodos[indexPath.item]
+        } else {
+            todo = todoListViewModel.upcomingTodos[indexPath.item]
+        }
+        cell.updateUI(todo: todo)
+        
         // TODO: doneButtonHandler 작성
         // TODO: deleteButtonHandler 작성
+        cell.doneButtonTapHandler = { [weak self] isDone in
+            todo.isDone = isDone
+            self?.todoListViewModel.updateTodo(todo)
+            self?.collectionView.reloadData()
+        }
+        
+        cell.deleteButtonTapHandler = { [weak self] in
+            self?.todoListViewModel.deleteTodo(todo)
+            self?.collectionView.reloadData()
+        }
+        
         return cell
     }
     
@@ -97,7 +141,9 @@ extension TodoListViewController: UICollectionViewDataSource {
 extension TodoListViewController: UICollectionViewDelegateFlowLayout {
     func collectionView(_ collectionView: UICollectionView, layout collectionViewLayout: UICollectionViewLayout, sizeForItemAt indexPath: IndexPath) -> CGSize {
         // TODO: 사이즈 계산하기
-        return CGSize.zero
+        let width: CGFloat = collectionView.bounds.width
+        let height: CGFloat = 50
+        return CGSize(width: width, height: height)
     }
 }
 
@@ -147,8 +193,12 @@ class TodoListCell: UICollectionViewCell {
     
     @IBAction func checkButtonTapped(_ sender: Any) {
         // TODO: checkButton 처리
-        
-
+        checkButton.isSelected = !checkButton.isSelected
+        let isDone = checkButton.isSelected
+        showStrikeThrough(isDone)
+        descriptionLabel.alpha = isDone ? 0.2 : 1
+        deleteButton.isHidden = !isDone
+        doneButtonTapHandler?(isDone)
     }
     
     @IBAction func deleteButtonTapped(_ sender: Any) {
